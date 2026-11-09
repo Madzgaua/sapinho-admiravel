@@ -97,21 +97,53 @@
       text-align: center;
     }
     #status[hidden] { display: none; }
+    #status button {
+      margin-top: 10px;
+      padding: 10px 18px;
+      border: none;
+      border-radius: 50px;
+      background: #2e7d32;
+      color: #ffffff;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    #status button[hidden] { display: none; }
+
+    /* Link discreto embaixo do botão de AR: recarrega a página com uma URL nova do modelo */
+    .btn-reload {
+      position: absolute;
+      bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 999;
+      padding: 6px 12px;
+      border: none;
+      background: transparent;
+      color: #bdbdbd;
+      font-size: 13px;
+      text-decoration: underline;
+      cursor: pointer;
+      white-space: nowrap;
+    }
   </style>
 </head>
 <body>
 
   <!--
-    ar-modes: ordem de tentativa. Se o Scene Viewer der "Couldn't load object",
-    teste trocar para: "webxr scene-viewer quick-look"
+    ar-modes: ordem de tentativa.
+    - webxr: roda dentro do Chrome (pede a câmera ali mesmo) e NÃO depende do app do Google / Scene Viewer,
+      então não sofre com o cache dele.
+    - scene-viewer: plano B para aparelhos sem WebXR.
+    - quick-look: iPhone.
+    O "src" é definido no script lá embaixo (com um parâmetro anti-cache).
   -->
   <model-viewer
     id="animal-viewer"
-    src="sapo.glb"
     ios-src="sapo.usdz"
     alt="Animal em extinção da Mata Atlântica"
     ar
-    ar-modes="scene-viewer webxr quick-look"
+    ar-modes="webxr scene-viewer quick-look"
     camera-controls
     auto-rotate
     shadow-intensity="1"
@@ -131,18 +163,38 @@
     <span id="start-label" class="hint">Carregando modelo…</span>
   </button>
 
-  <p id="status" role="status" hidden></p>
+  <div id="status" role="status" hidden>
+    <p id="status-text"></p>
+    <button id="reload" type="button" hidden>Recarregar e tentar de novo</button>
+  </div>
+
+  <!-- Redundância extra: recarregar gera uma URL nova do modelo (contorna cache travado) -->
+  <button id="reload-small" class="btn-reload" type="button">Não abriu? Toque aqui para recarregar</button>
 
   <script>
     const viewer     = document.getElementById('animal-viewer');
     const start      = document.getElementById('start');
     const startLabel = document.getElementById('start-label');
     const statusEl   = document.getElementById('status');
+    const statusText = document.getElementById('status-text');
+    const reloadBtn  = document.getElementById('reload');
 
-    function showStatus(msg) {
-      statusEl.textContent = msg;
+    // ANTI-CACHE: o Scene Viewer (app do Google) baixa e guarda o .glb por URL.
+    // Uma URL única por visita evita reaproveitar uma cópia travada de uso anterior.
+    // (Para voltar ao comportamento normal, troque a linha por: viewer.setAttribute('src', MODEL_FILE);)
+    const MODEL_FILE = 'sapo.glb';
+    viewer.setAttribute('src', MODEL_FILE + '?cb=' + Date.now());
+
+    function showStatus(msg, canReload) {
+      statusText.textContent = msg;
+      reloadBtn.hidden = !canReload;
       statusEl.hidden = !msg;
     }
+
+    // Recarregar gera um novo Date.now(), ou seja, uma URL nova do modelo
+    function reloadPage() { window.location.reload(); }
+    reloadBtn.addEventListener('click', reloadPage);
+    document.getElementById('reload-small').addEventListener('click', reloadPage);
 
     function dismissStart() {
       start.hidden = true;
@@ -164,7 +216,7 @@
     const libTimer = setTimeout(function () {
       if (!customElements.get('model-viewer')) {
         dismissStart();
-        showStatus('Não foi possível carregar a biblioteca de RA. Verifique a conexão e recarregue a página.');
+        showStatus('Não foi possível carregar a biblioteca de RA. Verifique a conexão e tente de novo.', true);
       }
     }, 10000);
 
@@ -198,7 +250,7 @@
 
     function onARFailed(err) {
       console.error('Falha ao iniciar RA:', err);
-      showStatus('Não foi possível iniciar a RA automaticamente. Use o botão verde abaixo para tentar de novo.');
+      showStatus('Não foi possível iniciar a RA automaticamente. Use o botão verde abaixo ou recarregue a página.', true);
     }
 
     viewer.addEventListener('load', onModelLoaded);
@@ -212,7 +264,7 @@
     viewer.addEventListener('error', function (e) {
       console.error('Erro do model-viewer:', e.detail);
       dismissStart();
-      showStatus('Não foi possível carregar o modelo 3D (' + viewer.getAttribute('src') + '). Confira o nome e o caminho do arquivo no GitHub.');
+      showStatus('Não foi possível carregar o modelo 3D (' + MODEL_FILE + '). Confira o nome e o caminho do arquivo no GitHub.', true);
     });
   </script>
 
